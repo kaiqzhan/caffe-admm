@@ -56,6 +56,20 @@ Dtype SGDSolver<Dtype>::GetLearningRate() {
     rate = this->param_.base_lr() * (Dtype(1.) /
         (Dtype(1.) + exp(-this->param_.gamma() * (Dtype(this->iter_) -
           Dtype(this->param_.stepsize())))));
+  } else if (lr_policy == "admm") {  // for admm pruning algorithm
+    int iter = this->iter_ % this->param_.admm_iter();
+    if (iter == 0) {
+      this->current_step_ = 0;
+      LOG(INFO) << "ADMM MultiStep Status: Iteration " <<
+      iter << ", step = " << this->current_step_;
+    } else if (this->current_step_ < this->param_.stepvalue_size() &&
+        iter >= this->param_.stepvalue(this->current_step_)) {
+      this->current_step_++;
+      LOG(INFO) << "ADMM MultiStep Status: Inner Iteration " <<
+      iter << ", step = " << this->current_step_;
+    }
+    rate = this->param_.base_lr() *
+        pow(this->param_.gamma(), this->current_step_);
   } else {
     LOG(FATAL) << "Unknown learning rate policy: " << lr_policy;
   }
@@ -69,11 +83,17 @@ void SGDSolver<Dtype>::PreSolve() {
   history_.clear();
   update_.clear();
   temp_.clear();
+  wtemp_.clear();
+  zutemp_.clear();
+  mask_.clear();
   for (int i = 0; i < net_params.size(); ++i) {
     const vector<int>& shape = net_params[i]->shape();
     history_.push_back(shared_ptr<Blob<Dtype> >(new Blob<Dtype>(shape)));
     update_.push_back(shared_ptr<Blob<Dtype> >(new Blob<Dtype>(shape)));
     temp_.push_back(shared_ptr<Blob<Dtype> >(new Blob<Dtype>(shape)));
+    wtemp_.push_back(shared_ptr<Blob<Dtype> >(new Blob<Dtype>(shape)));
+    zutemp_.push_back(shared_ptr<Blob<Dtype> >(new Blob<Dtype>(shape)));
+    mask_.push_back(shared_ptr<Blob<Dtype> >(new Blob<Dtype>(shape)));
   }
 }
 
@@ -98,6 +118,62 @@ void SGDSolver<Dtype>::ClipGradients() {
   }
 }
 
+#ifndef CPU_ONLY
+template <typename Dtype>
+void set_mask_gpu(int N, const Dtype* a, Dtype min, Dtype* mask);
+#endif
+
+template <typename Dtype>
+void SGDSolver<Dtype>::ComputeMask() {
+  if (this->param_.pruning_phase() != "retrain")
+    return;  // no need to run
+
+  const vector<float>& net_params_prune_ratio = this->net_->params_prune_ratio();
+  const vector<Blob<Dtype>*>& net_params = this->net_->learnable_params();
+
+  switch (Caffe::mode()) {
+  case Caffe::CPU: {
+    // NOT_IMPLEMENTED
+    break;
+  }
+  case Caffe::GPU: {
+#ifndef CPU_ONLY
+    for (int param_id = 0; param_id < this->net_->learnable_params().size();
+         ++param_id) {
+
+      if (!this->net_->has_params_prune_ratio()[param_id])
+        continue;
+
+      // get pivot
+      wtemp_[param_id]->CopyFrom(*net_params[param_id], false, false);
+      // make all values positive
+      caffe_gpu_abs(wtemp_[param_id]->count(),
+                    wtemp_[param_id]->gpu_data(),
+                    wtemp_[param_id]->mutable_gpu_data());
+
+      Dtype pivot = findKthSmallest(wtemp_[param_id]->mutable_cpu_data(),
+                                    wtemp_[param_id]->count(),
+                                    net_params_prune_ratio[param_id]);
+
+      // set mask
+      set_mask_gpu(mask_[param_id]->count(),
+                   net_params[param_id]->gpu_data(),
+                   pivot,
+                   mask_[param_id]->mutable_gpu_data());
+
+      LOG(INFO) << "Mask set: param_id " << param_id \
+                << " prune ratio " << net_params_prune_ratio[param_id];
+    }
+#else
+    NO_GPU;
+#endif
+    break;
+  }
+  default:
+    LOG(FATAL) << "Unknown caffe mode: " << Caffe::mode();
+  }
+}
+
 template <typename Dtype>
 void SGDSolver<Dtype>::ApplyUpdate() {
   Dtype rate = GetLearningRate();
@@ -110,6 +186,8 @@ void SGDSolver<Dtype>::ApplyUpdate() {
        ++param_id) {
     Normalize(param_id);
     Regularize(param_id);
+    ADMM(param_id);
+    ApplyMask(param_id);
     ComputeUpdateValue(param_id, rate);
   }
   this->net_->Update();
@@ -193,6 +271,167 @@ void SGDSolver<Dtype>::Regularize(int param_id) {
         LOG(FATAL) << "Unknown regularization type: " << regularization_type;
       }
     }
+#else
+    NO_GPU;
+#endif
+    break;
+  }
+  default:
+    LOG(FATAL) << "Unknown caffe mode: " << Caffe::mode();
+  }
+}
+
+template <typename Dtype>
+Dtype SGDSolver<Dtype>::findKthSmallest(Dtype* v, int size, float compress_ratio) {
+  int k = size * compress_ratio;
+  int lo = 0, hi = size - 1;
+  while (lo < hi) {
+    int j = partition(v, lo, hi);
+    if(j < k)
+      lo = j + 1;
+    else if (j > k)
+      hi = j - 1;
+    else
+      break;
+  }
+  return v[k];
+}
+
+template <typename Dtype>
+int SGDSolver<Dtype>::partition(Dtype* v, int lo, int hi) {
+  int i = lo;
+  int j = hi + 1;
+  while(true) {
+    while(i < hi && v[++i] < v[lo]);
+    while(j > lo && v[lo] < v[--j]);
+    if(i >= j) break;
+    swap(v, i, j);
+  }
+  swap(v, lo, j);
+  return j;
+}
+
+template <typename Dtype>
+void SGDSolver<Dtype>::swap(Dtype* v, int i, int j) {
+  Dtype temp = v[i];
+  v[i] = v[j];
+  v[j] = temp;
+}
+
+#ifndef CPU_ONLY
+template <typename Dtype>
+void abs_min_filter_gpu(int N, Dtype* a, Dtype min);
+#endif
+
+template <typename Dtype>
+void SGDSolver<Dtype>::ADMM(int param_id) {
+  if (this->param_.pruning_phase() != "admm" ||
+      !this->net_->has_params_prune_ratio()[param_id])
+    return;  // no need to run ADMM
+
+  const vector<float>& net_params_prune_ratio = this->net_->params_prune_ratio();
+  const vector<float>& net_params_rho = this->net_->params_rho();
+  const vector<Blob<Dtype>*>& net_params = this->net_->learnable_params();
+
+  switch (Caffe::mode()) {
+  case Caffe::CPU: {
+    // NOT_IMPLEMENTED
+    break;
+  }
+  case Caffe::GPU: {
+#ifndef CPU_ONLY
+    // update Z and U every admm_iter iterations
+    if (this->iter_ % this->param_.admm_iter() == 0) {
+      // Z = W + U
+      caffe_gpu_add(zutemp_[param_id]->count(),
+                    net_params[param_id]->gpu_data(), // W
+                    zutemp_[param_id]->gpu_diff(),    // +U
+                    zutemp_[param_id]->mutable_gpu_data());  // Z=
+
+      // get pivot
+      wtemp_[param_id]->CopyFrom(*zutemp_[param_id], false, false);
+      // make all values positive
+      caffe_gpu_abs(wtemp_[param_id]->count(),
+                    wtemp_[param_id]->gpu_data(),
+                    wtemp_[param_id]->mutable_gpu_data());
+
+      Dtype pivot = findKthSmallest(wtemp_[param_id]->mutable_cpu_data(),
+                                    wtemp_[param_id]->count(),
+                                    net_params_prune_ratio[param_id]);
+      //printf("id:%d, pivot:%f\n", param_id, pivot);
+
+      // filter Z
+      abs_min_filter_gpu(zutemp_[param_id]->count(),
+                         zutemp_[param_id]->mutable_gpu_data(),
+                         pivot);
+
+      if (this->iter_ != 0) {
+        LOG(INFO) << "bingo! " << param_id << " " << pivot;
+        // update U
+        caffe_gpu_add(zutemp_[param_id]->count(),
+                      zutemp_[param_id]->gpu_diff(),    // U
+                      net_params[param_id]->gpu_data(), // +W
+                      zutemp_[param_id]->mutable_gpu_diff());
+
+        caffe_gpu_sub(zutemp_[param_id]->count(),
+                      zutemp_[param_id]->gpu_diff(),  // U
+                      zutemp_[param_id]->gpu_data(),  // -Z
+                      zutemp_[param_id]->mutable_gpu_diff());
+      }
+
+      LOG(INFO) << "ADMM Update Z & U: Iteration " << this->iter_;
+    }
+
+    // update weights every iteration
+    caffe_gpu_axpy(net_params[param_id]->count(),
+                   Dtype(net_params_rho[param_id]),
+                   net_params[param_id]->gpu_data(),  // W
+                   net_params[param_id]->mutable_gpu_diff());
+
+    caffe_gpu_axpy(net_params[param_id]->count(),
+                   Dtype(-1.0 * net_params_rho[param_id]),
+                   zutemp_[param_id]->gpu_data(),  // -Z
+                   net_params[param_id]->mutable_gpu_diff());
+
+    caffe_gpu_axpy(net_params[param_id]->count(),
+                   Dtype(net_params_rho[param_id]),
+                   zutemp_[param_id]->gpu_diff(),  // U
+                   net_params[param_id]->mutable_gpu_diff());
+#else
+    NO_GPU;
+#endif
+    break;
+  }
+  default:
+    LOG(FATAL) << "Unknown caffe mode: " << Caffe::mode();
+  }
+}
+
+template <typename Dtype>
+void SGDSolver<Dtype>::ApplyMask(int param_id) {
+  if (this->param_.pruning_phase() != "retrain" ||
+      !this->net_->has_params_prune_ratio()[param_id])
+    return;  // no need to run ADMM
+
+  const vector<Blob<Dtype>*>& net_params = this->net_->learnable_params();
+
+  switch (Caffe::mode()) {
+  case Caffe::CPU: {
+    // NOT_IMPLEMENTED
+    break;
+  }
+  case Caffe::GPU: {
+#ifndef CPU_ONLY
+    // mask weights
+    caffe_gpu_mul(net_params[param_id]->count(),
+                  net_params[param_id]->gpu_data(),
+                  mask_[param_id]->gpu_data(),
+                  net_params[param_id]->mutable_gpu_data());
+    // mask gradients
+    caffe_gpu_mul(net_params[param_id]->count(),
+                  net_params[param_id]->gpu_diff(),
+                  mask_[param_id]->gpu_data(),
+                  net_params[param_id]->mutable_gpu_diff());
 #else
     NO_GPU;
 #endif

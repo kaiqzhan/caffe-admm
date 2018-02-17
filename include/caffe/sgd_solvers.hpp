@@ -26,9 +26,17 @@ class SGDSolver : public Solver<Dtype> {
  protected:
   void PreSolve();
   Dtype GetLearningRate();
+  virtual void ComputeMask();
   virtual void ApplyUpdate();
   virtual void Normalize(int param_id);
   virtual void Regularize(int param_id);
+  // ADMM
+  virtual Dtype findKthSmallest(Dtype* v, int size, float compress_ratio);
+  virtual int partition(Dtype* v, int lo, int hi);
+  virtual void swap(Dtype* v, int i, int j);
+  virtual void ADMM(int param_id);
+  virtual void ApplyMask(int param_id);
+  //
   virtual void ComputeUpdateValue(int param_id, Dtype rate);
   virtual void ClipGradients();
   virtual void SnapshotSolverState(const string& model_filename);
@@ -41,6 +49,8 @@ class SGDSolver : public Solver<Dtype> {
   // temp maintains other information that might be needed in computation
   //   of gradients/updates and is not needed in snapshots
   vector<shared_ptr<Blob<Dtype> > > history_, update_, temp_;
+  vector<shared_ptr<Blob<Dtype> > > wtemp_, zutemp_; // Z in blob data, U in blob diff
+  vector<shared_ptr<Blob<Dtype> > > mask_;
 
   DISABLE_COPY_AND_ASSIGN(SGDSolver);
 };

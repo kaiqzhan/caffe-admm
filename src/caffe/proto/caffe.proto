@@ -181,6 +181,11 @@ message SolverParameter {
   // the stepsize for learning rate policy "multistep"
   repeated int32 stepvalue = 34;
 
+  // the number of iterations for one admm step
+  optional int32 admm_iter = 50;
+  // pruning phase: ADMM or RETRAIN
+  optional string pruning_phase = 51;
+
   // Set clip_gradients to >= 0 to clip parameter gradients to that L2 norm,
   // whenever their actual L2 norm is larger.
   optional float clip_gradients = 35 [default = -1];
@@ -251,7 +256,7 @@ message SolverParameter {
   // If command line --weights parameter if specified, it has higher priority
   // and owerwrites this one(s).
   // If --snapshot command line parameter is specified, this one(s) are ignored.
-  // If several model files are expected, they can be listed in a one 
+  // If several model files are expected, they can be listed in a one
   // weights parameter separated by ',' (like in a command string) or
   // in repeated weights parameters separately.
   repeated string weights = 42;
@@ -317,6 +322,10 @@ message ParamSpec {
 
   // The multiplier on the global weight decay for this parameter.
   optional float decay_mult = 4 [default = 1.0];
+
+  // ADMM pruning
+  optional float prune_ratio = 5;
+  optional float rho = 6;
 }
 
 // NOTE

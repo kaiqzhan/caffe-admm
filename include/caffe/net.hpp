@@ -187,6 +187,12 @@ class Net {
   inline const vector<bool>& has_params_decay() const {
     return has_params_decay_;
   }
+
+  inline const vector<float>& params_prune_ratio() const { return params_prune_ratio_; }
+  inline const vector<bool>& has_params_prune_ratio() const { return has_params_prune_ratio_; }
+  inline const vector<float>& params_rho() const { return params_rho_; }
+  inline const vector<bool>& has_params_rho() const { return has_params_rho_; }
+  
   const map<string, int>& param_names_index() const {
     return param_names_index_;
   }
@@ -326,6 +332,11 @@ class Net {
   /// the weight decay multipliers for learnable_params_
   vector<float> params_weight_decay_;
   vector<bool> has_params_decay_;
+  ///
+  vector<float> params_prune_ratio_;
+  vector<bool> has_params_prune_ratio_;
+  vector<float> params_rho_;
+  vector<bool> has_params_rho_;
   /// The bytes of memory used by this net
   size_t memory_used_;
   /// Whether to compute and display debug info for the net.

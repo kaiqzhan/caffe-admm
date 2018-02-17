@@ -454,6 +454,11 @@ void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id,
     has_params_decay_.push_back(param_spec->has_decay_mult());
     params_lr_.push_back(param_spec->lr_mult());
     params_weight_decay_.push_back(param_spec->decay_mult());
+
+    has_params_prune_ratio_.push_back(param_spec->has_prune_ratio());
+    has_params_rho_.push_back(param_spec->has_rho());
+    params_prune_ratio_.push_back(param_spec->prune_ratio());
+    params_rho_.push_back(param_spec->rho());
   } else {
     // Named param blob with name we've seen before: share params
     const int owner_net_param_id = param_names_index_[param_name];
@@ -507,6 +512,26 @@ void Net<Dtype>::AppendParam(const NetParameter& param, const int layer_id,
       } else {
         has_params_decay_[learnable_param_id] = true;
         params_weight_decay_[learnable_param_id] = param_spec->decay_mult();
+      }
+    }
+    if (param_spec->has_prune_ratio()) {
+      if (has_params_prune_ratio_[learnable_param_id]) {
+        CHECK_EQ(param_spec->prune_ratio(),
+                 params_prune_ratio_[learnable_param_id])
+            << "Shared param '" << param_name << "' has mismatched prune_ratio.";
+      } else {
+        has_params_prune_ratio_[learnable_param_id] = true;
+        params_prune_ratio_[learnable_param_id] = param_spec->prune_ratio();
+      }
+    }
+    if (param_spec->has_rho()) {
+      if (has_params_rho_[learnable_param_id]) {
+        CHECK_EQ(param_spec->rho(),
+                 params_rho_[learnable_param_id])
+            << "Shared param '" << param_name << "' has mismatched rho.";
+      } else {
+        has_params_rho_[learnable_param_id] = true;
+        params_rho_[learnable_param_id] = param_spec->rho();
       }
     }
   }

@@ -204,6 +204,9 @@ void Solver<Dtype>::Step(int iters) {
   int average_loss = this->param_.average_loss();
   losses_.clear();
   smoothed_loss_ = 0;
+
+  ComputeMask();
+
   iteration_timer_.Start();
 
   while (iter_ < stop_iter) {

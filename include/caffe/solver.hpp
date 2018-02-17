@@ -95,6 +95,7 @@ class Solver {
   virtual inline const char* type() const { return ""; }
 
  protected:
+  virtual void ComputeMask() = 0;
   // Make and apply the update value for the current iteration.
   virtual void ApplyUpdate() = 0;
   string SnapshotFilename(const string extension);

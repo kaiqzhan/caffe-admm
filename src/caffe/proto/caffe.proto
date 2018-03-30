@@ -270,6 +270,11 @@ message SolverState {
   optional int32 current_step = 4 [default = 0]; // The current step for learning rate
 }
 
+// A message that stores the admm snapshots
+message ADMMState {
+  repeated BlobProto zutemp = 1; // Z and U matrix for sgd solvers
+}
+
 enum Phase {
    TRAIN = 0;
    TEST = 1;

@@ -33,6 +33,8 @@ class SGDSolver : public Solver<Dtype> {
   virtual void ADMM(int param_id);
   virtual void ComputeMask();
   virtual void ApplyMask(int param_id);
+  virtual void SnapshotADMMStateToBinaryProto();
+  virtual void RestoreADMMStateFromBinaryProto(const string& state_file);
   //
   virtual void ComputeUpdateValue(int param_id, Dtype rate);
   virtual void ClipGradients();

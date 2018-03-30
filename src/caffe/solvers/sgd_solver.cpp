@@ -487,6 +487,24 @@ void SGDSolver<Dtype>::SnapshotSolverStateToBinaryProto(
   LOG(INFO)
     << "Snapshotting solver state to binary proto file " << snapshot_filename;
   WriteProtoToBinaryFile(state, snapshot_filename.c_str());
+
+  // snapshot admm state
+  if (this->param_.pruning_phase() == "admm")
+    SnapshotADMMStateToBinaryProto();
+}
+
+template <typename Dtype>
+void SGDSolver<Dtype>::SnapshotADMMStateToBinaryProto() {
+  ADMMState state;
+  state.clear_zutemp();
+  for (int i = 0; i < zutemp_.size(); ++i) {
+    BlobProto* zutemp_blob = state.add_zutemp();
+    zutemp_[i]->ToProto(zutemp_blob);
+  }
+  string snapshot_filename = Solver<Dtype>::SnapshotFilename(".solverstate.admm");
+  LOG(INFO)
+    << "Snapshotting admm state to binary proto file " << snapshot_filename;
+  WriteProtoToBinaryFile(state, snapshot_filename.c_str());
 }
 
 template <typename Dtype>
@@ -532,6 +550,23 @@ void SGDSolver<Dtype>::RestoreSolverStateFromBinaryProto(
   LOG(INFO) << "SGDSolver: restoring history";
   for (int i = 0; i < history_.size(); ++i) {
     history_[i]->FromProto(state.history(i));
+  }
+
+  // snapshot admm state
+  if (this->param_.pruning_phase() == "admm")
+    RestoreADMMStateFromBinaryProto(state_file + ".admm");
+}
+
+template <typename Dtype>
+void SGDSolver<Dtype>::RestoreADMMStateFromBinaryProto(
+    const string& state_file) {
+  ADMMState state;
+  ReadProtoFromBinaryFile(state_file, &state);
+  CHECK_EQ(state.zutemp_size(), zutemp_.size())
+      << "Incorrect length of zutemp blobs.";
+  LOG(INFO) << "SGDSolver: restoring zutemp";
+  for (int i = 0; i < zutemp_.size(); ++i) {
+    zutemp_[i]->FromProto(state.zutemp(i));
   }
 }
 

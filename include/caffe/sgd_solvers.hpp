@@ -26,15 +26,12 @@ class SGDSolver : public Solver<Dtype> {
  protected:
   void PreSolve();
   Dtype GetLearningRate();
-  virtual void ComputeMask();
   virtual void ApplyUpdate();
   virtual void Normalize(int param_id);
   virtual void Regularize(int param_id);
   // ADMM
-  virtual Dtype findKthSmallest(Dtype* v, int size, float compress_ratio);
-  virtual int partition(Dtype* v, int lo, int hi);
-  virtual void swap(Dtype* v, int i, int j);
   virtual void ADMM(int param_id);
+  virtual void ComputeMask();
   virtual void ApplyMask(int param_id);
   //
   virtual void ComputeUpdateValue(int param_id, Dtype rate);

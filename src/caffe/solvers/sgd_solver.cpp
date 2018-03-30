@@ -1,5 +1,6 @@
 #include <string>
 #include <vector>
+#include <algorithm>
 
 #include "caffe/sgd_solvers.hpp"
 #include "caffe/util/hdf5.hpp"
@@ -134,6 +135,7 @@ void SGDSolver<Dtype>::ComputeMask() {
   switch (Caffe::mode()) {
   case Caffe::CPU: {
     // NOT_IMPLEMENTED
+    LOG(FATAL) << "ADMM pruning not supported in CPU mode!";
     break;
   }
   case Caffe::GPU: {
@@ -151,9 +153,13 @@ void SGDSolver<Dtype>::ComputeMask() {
                     wtemp_[param_id]->gpu_data(),
                     wtemp_[param_id]->mutable_gpu_data());
 
-      Dtype pivot = findKthSmallest(wtemp_[param_id]->mutable_cpu_data(),
-                                    wtemp_[param_id]->count(),
-                                    net_params_prune_ratio[param_id]);
+      // find n smallest element
+      int n = wtemp_[param_id]->count() * net_params_prune_ratio[param_id];
+      Dtype* begin = wtemp_[param_id]->mutable_cpu_data();
+      Dtype* end = begin + wtemp_[param_id]->count();
+      Dtype* nth = begin + n;
+      std::nth_element(begin, nth, end);
+      Dtype pivot = wtemp_[param_id]->cpu_data()[n];
 
       // set mask
       set_mask_gpu(mask_[param_id]->count(),
@@ -281,43 +287,6 @@ void SGDSolver<Dtype>::Regularize(int param_id) {
   }
 }
 
-template <typename Dtype>
-Dtype SGDSolver<Dtype>::findKthSmallest(Dtype* v, int size, float compress_ratio) {
-  int k = size * compress_ratio;
-  int lo = 0, hi = size - 1;
-  while (lo < hi) {
-    int j = partition(v, lo, hi);
-    if(j < k)
-      lo = j + 1;
-    else if (j > k)
-      hi = j - 1;
-    else
-      break;
-  }
-  return v[k];
-}
-
-template <typename Dtype>
-int SGDSolver<Dtype>::partition(Dtype* v, int lo, int hi) {
-  int i = lo;
-  int j = hi + 1;
-  while(true) {
-    while(i < hi && v[++i] < v[lo]);
-    while(j > lo && v[lo] < v[--j]);
-    if(i >= j) break;
-    swap(v, i, j);
-  }
-  swap(v, lo, j);
-  return j;
-}
-
-template <typename Dtype>
-void SGDSolver<Dtype>::swap(Dtype* v, int i, int j) {
-  Dtype temp = v[i];
-  v[i] = v[j];
-  v[j] = temp;
-}
-
 #ifndef CPU_ONLY
 template <typename Dtype>
 void abs_min_filter_gpu(int N, Dtype* a, Dtype min);
@@ -336,6 +305,7 @@ void SGDSolver<Dtype>::ADMM(int param_id) {
   switch (Caffe::mode()) {
   case Caffe::CPU: {
     // NOT_IMPLEMENTED
+    LOG(FATAL) << "ADMM pruning not supported in CPU mode!";
     break;
   }
   case Caffe::GPU: {
@@ -355,10 +325,14 @@ void SGDSolver<Dtype>::ADMM(int param_id) {
                     wtemp_[param_id]->gpu_data(),
                     wtemp_[param_id]->mutable_gpu_data());
 
-      Dtype pivot = findKthSmallest(wtemp_[param_id]->mutable_cpu_data(),
-                                    wtemp_[param_id]->count(),
-                                    net_params_prune_ratio[param_id]);
-      //printf("id:%d, pivot:%f\n", param_id, pivot);
+      // find n smallest element
+      int n = wtemp_[param_id]->count() * net_params_prune_ratio[param_id];
+      Dtype* begin = wtemp_[param_id]->mutable_cpu_data();
+      Dtype* end = begin + wtemp_[param_id]->count();
+      Dtype* nth = begin + n;
+      std::nth_element(begin, nth, end);
+      Dtype pivot = wtemp_[param_id]->cpu_data()[n];
+      // printf("id:%d, pivot:%f\n", param_id, pivot);
 
       // filter Z
       abs_min_filter_gpu(zutemp_[param_id]->count(),
@@ -418,6 +392,7 @@ void SGDSolver<Dtype>::ApplyMask(int param_id) {
   switch (Caffe::mode()) {
   case Caffe::CPU: {
     // NOT_IMPLEMENTED
+    LOG(FATAL) << "ADMM pruning not supported in CPU mode!";
     break;
   }
   case Caffe::GPU: {

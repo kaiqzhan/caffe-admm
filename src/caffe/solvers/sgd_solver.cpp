@@ -499,7 +499,7 @@ void SGDSolver<Dtype>::SnapshotADMMStateToBinaryProto() {
   state.clear_zutemp();
   for (int i = 0; i < zutemp_.size(); ++i) {
     BlobProto* zutemp_blob = state.add_zutemp();
-    zutemp_[i]->ToProto(zutemp_blob);
+    zutemp_[i]->ToProto(zutemp_blob, true);
   }
   string snapshot_filename = Solver<Dtype>::SnapshotFilename(".solverstate.admm");
   LOG(INFO)

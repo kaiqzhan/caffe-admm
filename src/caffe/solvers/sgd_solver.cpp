@@ -126,7 +126,7 @@ void set_mask_gpu(int N, const Dtype* a, Dtype min, Dtype* mask);
 
 template <typename Dtype>
 void SGDSolver<Dtype>::ComputeMask() {
-  if (this->param_.pruning_phase() != "retrain" && this->param_.pruning_phase() !="retrain")
+  if (this->param_.pruning_phase() != "retrain" && this->param_.pruning_phase() !="admm")
     return;  // no need to run
  
   const vector<float>& net_params_prune_ratio = this->net_->params_prune_ratio();
@@ -391,7 +391,7 @@ void SGDSolver<Dtype>::ADMM(int param_id) {
 
 template <typename Dtype>
 void SGDSolver<Dtype>::ApplyMask(int param_id) {
-  if (this->param_.pruning_phase() != "retrain" ||
+  if (this->param_.pruning_phase() != "retrain" &&
       this->param_.pruning_phase() !="admm")
     return;  // no need to run ADMM
 

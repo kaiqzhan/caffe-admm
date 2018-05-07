@@ -126,18 +126,26 @@ void set_mask_gpu(int N, const Dtype* a, Dtype min, Dtype* mask);
 
 template <typename Dtype>
 void SGDSolver<Dtype>::ComputeMask() {
-  if (this->param_.pruning_phase() != "retrain")
+  if (this->param_.pruning_phase() != "retrain" && this->param_.pruning_phase() !="retrain")
     return;  // no need to run
-
+ 
   const vector<float>& net_params_prune_ratio = this->net_->params_prune_ratio();
   const vector<Blob<Dtype>*>& net_params = this->net_->learnable_params();
+  
 
-  switch (Caffe::mode()) {
-  case Caffe::CPU: {
-    // NOT_IMPLEMENTED
-    LOG(FATAL) << "ADMM pruning not supported in CPU mode!";
-    break;
-  }
+  for (int param_id = 0; param_id < this->net_->learnable_params().size(); ++param_id)
+    {
+      const Dtype* net_param = net_params[param_id]->cpu_data();
+      Dtype * mask_mutable = mask_[param_id]->mutable_cpu_data();
+      
+      caffe_set(mask_[param_id]->count(),Dtype(1),mask_mutable);
+      for (int i = 0; i< net_params[param_id]->count(); i++)
+	{
+	  if (net_param[i] == Dtype(0))
+	    mask_mutable[i] = Dtype(0);
+	}
+    }
+  switch (Caffe::mode()){
   case Caffe::GPU: {
 #ifndef CPU_ONLY
     for (int param_id = 0; param_id < this->net_->learnable_params().size();
@@ -384,7 +392,7 @@ void SGDSolver<Dtype>::ADMM(int param_id) {
 template <typename Dtype>
 void SGDSolver<Dtype>::ApplyMask(int param_id) {
   if (this->param_.pruning_phase() != "retrain" ||
-      !this->net_->has_params_prune_ratio()[param_id])
+      this->param_.pruning_phase() !="admm")
     return;  // no need to run ADMM
 
   const vector<Blob<Dtype>*>& net_params = this->net_->learnable_params();

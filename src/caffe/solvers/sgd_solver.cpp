@@ -320,6 +320,11 @@ void SGDSolver<Dtype>::ADMM(int param_id) {
 #ifndef CPU_ONLY
     // update Z and U every admm_iter iterations
     if (this->iter_ % this->param_.admm_iter() == 0) {
+      // store Z(k) for tempo calculation
+      Blob<Dtype> temp_blob;
+      temp_blob.Reshape(zutemp_[param_id]->shape());
+      temp_blob.CopyFrom(*zutemp_[param_id], false, false);
+
       // Z = W + U
       caffe_gpu_add(zutemp_[param_id]->count(),
                     net_params[param_id]->gpu_data(), // W
@@ -348,7 +353,7 @@ void SGDSolver<Dtype>::ADMM(int param_id) {
                          pivot);
 
       if (this->iter_ != 0) {
-        LOG(INFO) << "bingo! " << param_id << " " << pivot;
+        //LOG(INFO) << "bingo! " << param_id << " " << pivot;
         // update U
         caffe_gpu_add(zutemp_[param_id]->count(),
                       zutemp_[param_id]->gpu_diff(),    // U
@@ -361,7 +366,20 @@ void SGDSolver<Dtype>::ADMM(int param_id) {
                       zutemp_[param_id]->mutable_gpu_diff());
       }
 
-      LOG(INFO) << "ADMM Update Z & U: Iteration " << this->iter_;
+      //LOG(INFO) << "ADMM Update Z & U: Iteration " << this->iter_;
+
+      // print W(k+1) - Z(k+1)
+      caffe_gpu_sub(temp_blob.count(), net_params[param_id]->gpu_data(),
+                    zutemp_[param_id]->gpu_data(), temp_blob.mutable_gpu_diff());
+      Dtype w_sub_z = temp_blob.sumsq_diff();
+
+      // print Z(k+1) - Z(k)
+      caffe_gpu_sub(temp_blob.count(), zutemp_[param_id]->gpu_data(),
+                    temp_blob.gpu_data(), temp_blob.mutable_gpu_diff());
+      Dtype z_sub_z = temp_blob.sumsq_diff();
+
+      LOG(INFO) << "ADMM updated! iter: " << this->iter_ << ", param_id: " 
+                << param_id << ", W(k+1)-Z(k+1): " << w_sub_z << ", Z(k+1)-Z(k): " << z_sub_z;
     }
 
     // update weights every iteration

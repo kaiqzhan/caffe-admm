@@ -128,30 +128,30 @@ template <typename Dtype>
 void SGDSolver<Dtype>::ComputeMask() {
   if (this->param_.pruning_phase() != "retrain" && this->param_.pruning_phase() !="admm")
     return;  // no need to run
- 
+
   const vector<float>& net_params_prune_ratio = this->net_->params_prune_ratio();
   const vector<Blob<Dtype>*>& net_params = this->net_->learnable_params();
-  
+
 
   for (int param_id = 0; param_id < this->net_->learnable_params().size(); ++param_id)
+  {
+    const Dtype* net_param = net_params[param_id]->cpu_data();
+    Dtype * mask_mutable = mask_[param_id]->mutable_cpu_data();
+
+    caffe_set(mask_[param_id]->count(),Dtype(1),mask_mutable);
+    for (int i = 0; i< net_params[param_id]->count(); i++)
     {
-      const Dtype* net_param = net_params[param_id]->cpu_data();
-      Dtype * mask_mutable = mask_[param_id]->mutable_cpu_data();
-      
-      caffe_set(mask_[param_id]->count(),Dtype(1),mask_mutable);
-      for (int i = 0; i< net_params[param_id]->count(); i++)
-	{
-	  if (net_param[i] == Dtype(0))
-	    mask_mutable[i] = Dtype(0);
-	}
+      if (net_param[i] == Dtype(0))
+      mask_mutable[i] = Dtype(0);
     }
+  }
   switch (Caffe::mode()){
   case Caffe::GPU: {
 #ifndef CPU_ONLY
     for (int param_id = 0; param_id < this->net_->learnable_params().size();
          ++param_id) {
 
-      if (!this->net_->has_params_prune_ratio()[param_id])
+      if (this->param_.pruning_phase() != "retrain" || !this->net_->has_params_prune_ratio()[param_id])
         continue;
 
       // get pivot

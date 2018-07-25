@@ -45,8 +45,8 @@ layer {
   param {
     lr_mult: 1
     decay_mult: 1
-    prune_ratio: 0.16
-    rho: 0.001
+    prune_ratio: 0.19
+    rho: 0.0015
   }
   param {
     lr_mult: 2
@@ -102,8 +102,8 @@ layer {
   param {
     lr_mult: 1
     decay_mult: 1
-    prune_ratio: 0.62
-    rho: 0.001
+    prune_ratio: 0.80
+    rho: 0.0015
   }
   param {
     lr_mult: 2
@@ -160,8 +160,8 @@ layer {
   param {
     lr_mult: 1
     decay_mult: 1
-    prune_ratio: 0.65
-    rho: 0.001
+    prune_ratio: 0.81
+    rho: 0.0015
   }
   param {
     lr_mult: 2
@@ -195,8 +195,8 @@ layer {
   param {
     lr_mult: 1
     decay_mult: 1
-    prune_ratio: 0.63
-    rho: 0.001
+    prune_ratio: 0.80
+    rho: 0.0015
   }
   param {
     lr_mult: 2
@@ -231,8 +231,8 @@ layer {
   param {
     lr_mult: 1
     decay_mult: 1
-    prune_ratio: 0.63
-    rho: 0.001
+    prune_ratio: 0.80
+    rho: 0.0015
   }
   param {
     lr_mult: 2
@@ -278,8 +278,8 @@ layer {
   param {
     lr_mult: 1
     decay_mult: 1
-    prune_ratio: 0.91
-    rho: 0.001
+    prune_ratio: 0.972
+    rho: 0.0015
   }
   param {
     lr_mult: 2
@@ -320,8 +320,8 @@ layer {
   param {
     lr_mult: 1
     decay_mult: 1
-    prune_ratio: 0.91
-    rho: 0.001
+    prune_ratio: 0.941
+    rho: 0.0015
   }
   param {
     lr_mult: 2
@@ -362,8 +362,8 @@ layer {
   param {
     lr_mult: 1
     decay_mult: 1
-    prune_ratio: 0.75
-    rho: 0.001
+    prune_ratio: 0.907
+    rho: 0.0015
   }
   param {
     lr_mult: 2
@@ -389,6 +389,19 @@ layer {
   top: "accuracy"
   include {
     phase: TEST
+  }
+}
+layer {
+  name: "accuracy5"
+  type: "Accuracy"
+  bottom: "fc8"
+  bottom: "label"
+  top: "accuracy5"
+  include {
+    phase: TEST
+  }
+  accuracy_param {
+    top_k: 5
   }
 }
 layer {

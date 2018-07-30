@@ -5,12 +5,6 @@ Same as the original version of Caffe.
 See http://caffe.berkeleyvision.org/installation.html for the latest
 installation instructions.
 
-# Pruning algorithm
-
-Our algorithm utilize Alternating Direction Method of Multipliers (ADMM) to prune Deep Neural Networks. Please check our paper for details:
-
-“A Systematic DNN Weight Pruning Framework using Alternating Direction Method of Multipliers” ([https://arxiv.org/abs/1804.03294](https://arxiv.org/abs/1804.03294))
-
 ## How to train
 
 Two steps are required to prune a neural network. Suppose we have a pretrained model "bvlc_alexnet.caffemodel".
